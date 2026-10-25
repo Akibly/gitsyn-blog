@@ -4,7 +4,7 @@
   "private": true,
   "description": "GitSyn's automatic blog: research, write, gate, render to static files and deploy to Firebase Hosting.",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "test": "node --test \"functions/blog/*.test.js\"",
