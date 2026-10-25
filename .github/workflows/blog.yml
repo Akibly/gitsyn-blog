@@ -1,0 +1,105 @@
+name: blog
+
+# The blog is a static site, so this job does three things: write one article,
+# render the site, and prove the result changes nothing that already exists
+# before deploying. cron.js runs the gate; a non-zero exit stops the deploy.
+
+on:
+  schedule:
+    # Every six hours, offset from the top of the hour so a crowded runner
+    # slot is less likely. GitHub only runs schedules from the default branch.
+    - cron: '17 */6 * * *'
+    # Weekly Search Console learning, Monday 06:40 UTC.
+    - cron: '40 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'What to run'
+        type: choice
+        default: generate
+        options: [generate, learn, check]
+
+concurrency:
+  group: blog-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+      BLOG_LLM_PROVIDER: groq
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      # Research has no search engine other than Tavily, and Hosting needs a
+      # token. Failing here costs nothing; failing after the writer call would
+      # burn a day's Groq quota to produce a draft that can never ship.
+      - name: Check the secrets are all present
+        run: |
+          missing=
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY GROQ_API_KEY TAVILY_API_KEY; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::missing Actions secret(s):$missing"
+            exit 1
+          fi
+          if [ -z "$FIREBASE_TOKEN" ]; then
+            echo "::warning::FIREBASE_TOKEN is not set, so this run writes a draft but cannot deploy it."
+            echo "Run 'firebase login:ci' and save the token as the FIREBASE_TOKEN secret."
+          fi
+
+      - name: Decide what to run
+        id: job
+        run: |
+          job='${{ github.event.inputs.job }}'
+          if [ "${{ github.event.schedule }}" = "40 6 * * 1" ]; then
+            job=learn
+          fi
+          # A manual dispatch with the default left untouched arrives as an
+          # empty string, which would otherwise name a missing npm script.
+          echo "name=${job:-generate}" >> "$GITHUB_OUTPUT"
+
+      - name: Write, render and gate
+        run: npm run blog:${{ steps.job.outputs.name }}
+
+      # One rotating channel, overwritten each run: Hosting allows only a
+      # handful of channels, and a dated name would fill them up within days.
+      - name: Snapshot production before releasing
+        if: env.FIREBASE_TOKEN != ''
+        run: |
+          npx --yes firebase-tools@13.35.1 hosting:clone gitsyn:live gitsyn:cron-backup
+
+      - name: Deploy
+        if: env.FIREBASE_TOKEN != ''
+        run: |
+          npx --yes firebase-tools@13.35.1 deploy --only hosting:gitsyn-landing --non-interactive
+
+      - name: Confirm the site answers
+        if: env.FIREBASE_TOKEN != ''
+        run: |
+          sleep 20
+          for path in /blog /blog-sitemap.xml /blog/llms.txt /blog/rss.xml; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://gitsyn.cc$path")
+            echo "$code $path"
+            if [ "$code" != "200" ]; then
+              echo "::error::$path returned $code after the deploy"
+              exit 1
+            fi
+          done

@@ -1,0 +1,21 @@
+{
+  "name": "gitsyn-blog",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GitSyn's automatic blog: research, write, gate, render to static files and deploy to Firebase Hosting.",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "test": "node --test \"functions/blog/*.test.js\"",
+    "blog:generate": "node functions/blog/cron.js",
+    "blog:learn": "node functions/blog/cron.js --job=learn",
+    "blog:check": "node functions/blog/cron.js --job=check",
+    "blog:manifest": "node functions/blog/write-manifest.js",
+    "blog:deploy": "firebase deploy --only hosting:gitsyn-landing --non-interactive"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "markdown-it": "^15.0.3"
+  }
+}

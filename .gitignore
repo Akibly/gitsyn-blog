@@ -1,0 +1,12 @@
+node_modules/
+.firebase/
+.firebaserc-local/
+*.log
+.env*
+
+# Only the blog's code lives here. Its pages are rendered by build.js on every
+# run, and everything else the Hosting deploy needs is downloaded from
+# gitsyn.cc at run time by functions/blog/sync-live.js — so the live site's own
+# pages are never duplicated in this repo, and never go stale.
+landing/public/*
+!landing/public/blog.css

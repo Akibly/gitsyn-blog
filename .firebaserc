@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "abubakr-portfolio-2026"
+  },
+  "targets": {
+    "abubakr-portfolio-2026": {
+      "hosting": {
+        "gitsyn-landing": [
+          "gitsyn"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+# The deploy gate compares these files byte-for-byte with production, and
+# build.js writes LF. A Windows checkout that rewrites them to CRLF would look
+# like drift and block a deploy that has nothing wrong with it.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
